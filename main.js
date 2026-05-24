@@ -37,9 +37,14 @@ class Easee extends utils.Adapter {
    * SignalR
    */
   startSignal() {
+    // skipNegotiation + WebSockets-only umgeht den Node.js-Bug
+    // "Cannot read properties of undefined (reading 'secure')" in
+    // @microsoft/signalr 8.x (siehe Newan/ioBroker.easee#120).
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("https://streams.easee.com/hubs/chargers", {
         accessTokenFactory: () => accessToken,
+        skipNegotiation: true,
+        transport: signalR.HttpTransportType.WebSockets,
       })
       .withAutomaticReconnect()
       .build();
