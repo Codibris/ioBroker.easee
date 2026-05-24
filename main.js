@@ -12,9 +12,9 @@ const adapterIntervals = {}; //halten von allen Intervallen
 let accessToken = "";
 let refreshToken = "";
 let expireTime = Date.now();
-let polltime = 30;
+let polltime = 60;
 let logtype = false;
-const minPollTimeEnergy = 120;
+const minPollTimeEnergy = 1800;
 let roundCounter = 0;
 const arrCharger = [];
 
