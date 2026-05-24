@@ -8,6 +8,7 @@
 > **Fork-Hinweis:** Dieser Fork liefert Bugfixes für den nicht mehr gepflegten [Newan/ioBroker.easee](https://github.com/Newan/ioBroker.easee)-Adapter
 > (letztes Upstream-Release **1.0.10 vom Juli 2023**, 23 offene Issues).
 > Schwerpunkt: HTTP-429-Rate-Limit-Mitigation und SignalR-Reparatur unter Node.js 22+.
+> Vollständige Versionshistorie und Verifikations-Messdaten in [CHANGELOG.md](CHANGELOG.md).
 
 ## Easee Wallbox Adapter für ioBroker
 
