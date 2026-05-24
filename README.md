@@ -1,33 +1,57 @@
 ![Logo](admin/easee.png)
-# ioBroker.easee
+# ioBroker.easee – Codibris Fork
 
-[![NPM version](http://img.shields.io/npm/v/iobroker.easee.svg)](https://www.npmjs.com/package/iobroker.easee)
-[![Downloads](https://img.shields.io/npm/dm/iobroker.easee.svg)](https://www.npmjs.com/package/iobroker.easee)
-![Number of Installations (latest)](http://iobroker.live/badges/easee-installed.svg)
-![Number of Installations (stable)](http://iobroker.live/badges/easee-stable.svg)
-[![Dependency Status](https://img.shields.io/david/Newan/iobroker.easee.svg)](https://david-dm.org/Newan/iobroker.easee)
-[![Known Vulnerabilities](https://snyk.io/test/github/Newan/ioBroker.easee/badge.svg)](https://snyk.io/test/github/Newan/ioBroker.easee)
+[![GitHub release](https://img.shields.io/github/v/release/Codibris/ioBroker.easee?include_prereleases)](https://github.com/Codibris/ioBroker.easee/releases)
+[![Last commit](https://img.shields.io/github/last-commit/Codibris/ioBroker.easee)](https://github.com/Codibris/ioBroker.easee/commits)
+[![License](https://img.shields.io/github/license/Codibris/ioBroker.easee)](LICENSE)
 
-[![NPM](https://nodei.co/npm/iobroker.easee.png?downloads=true)](https://nodei.co/npm/iobroker.easee/)
+> **Fork-Hinweis:** Dieser Fork liefert Bugfixes für den nicht mehr gepflegten [Newan/ioBroker.easee](https://github.com/Newan/ioBroker.easee)-Adapter
+> (letztes Upstream-Release **1.0.10 vom Juli 2023**, 23 offene Issues).
+> Schwerpunkt: HTTP-429-Rate-Limit-Mitigation und SignalR-Reparatur unter Node.js 22+.
 
-**Tests:** ![Test and Release](https://github.com/Newan/ioBroker.easee/workflows/Test%20and%20Release/badge.svg)
+## Easee Wallbox Adapter für ioBroker
 
-## easee adapter for ioBroker
+Verbindet ioBroker mit der Easee Wallbox API (Cloud) und liefert Status- und Konfigurationsdaten
+sowie Steuerbefehle für eine oder mehrere Wallboxen. Updates kommen wahlweise per REST-Polling
+oder – bevorzugt – per SignalR-WebSocket-Push.
 
-Adapter to connect Easee Wallbox
+## Installation
 
-## Help
+```bash
+iobroker url 'https://github.com/Codibris/ioBroker.easee/tarball/master' easee
+```
 
-chargerOpMode =
-    Offline: 0,
-    Disconnected: 1,
-    AwaitingStart: 2,
-    Charging: 3,
-    Completed: 4,
-    Error: 5,
-    ReadyToCharge: 6
+Bei mehreren Wallboxen am gemeinsamen Stromkreis empfohlene Konfiguration:
 
-dynamicCircuitCurrentPX -> All phases must be set within 500ms (script) otherwise the phase will be set to 0.    
+| Setting | Default in diesem Fork | Empfehlung |
+|---|---|---|
+| `polltime` | 60 s | 60 s (REST-Fallback) |
+| `signalR` | true | true – Live-Updates via WebSocket |
+
+## Unterschiede zum Upstream (Newan/ioBroker.easee 1.0.10)
+
+| Problem im Upstream | Fix in diesem Fork |
+|---|---|
+| **HTTP 429 vom `/api/sessions/charger/<id>/monthly`-Endpoint** ([#86](https://github.com/Newan/ioBroker.easee/issues/86)) – bei 3 Wallboxen ~1900 Fehler/Tag | `minPollTimeEnergy` von 120 s auf **1800 s** (`main.js:17`). Monats-Statistiken ändern sich kaum stündlich. |
+| **`polltime` Default 30 s** zu aggressiv für Multi-Wallbox-Setups | Default auf **60 s** angehoben (`main.js:15`, `io-package.json`). |
+| **`@microsoft/signalr` crash unter Node.js 22+** ([#120](https://github.com/Newan/ioBroker.easee/issues/120)) – `Cannot read properties of undefined (reading 'secure')` beim Negotiation-Step → Adapter killt sich im Restart-Loop | `skipNegotiation: true` + `transport: WebSockets` in `startSignal()` (`main.js:40-49`). Easee-Hub `streams.easee.com` unterstützt WebSockets nativ. |
+| `signalR: false` als Default | `signalR: true` als Default – die fixierte WebSocket-Variante ist jetzt stabil. |
+
+## Hilfreiches
+
+`chargerOpMode`-Codes:
+
+| Code | Bedeutung |
+|---|---|
+| 0 | Offline |
+| 1 | Disconnected |
+| 2 | AwaitingStart |
+| 3 | Charging |
+| 4 | Completed |
+| 5 | Error |
+| 6 | ReadyToCharge |
+
+`dynamicCircuitCurrentPX` – alle drei Phasen müssen innerhalb von 500 ms per Skript gesetzt werden, sonst wird die jeweilige Phase auf 0 gesetzt.
 
 
 ## Changelog
