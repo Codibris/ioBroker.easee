@@ -10,6 +10,41 @@ mit einem Fork-Suffix `-codibris.<n>`.
 
 Keine offenen Änderungen.
 
+## [1.0.11-codibris.3] – 2026-05-24
+
+Behebt einen seit Adapter-Anbeginn vorhandenen Einheiten-Fehler in der
+Token-Ablauflogik. Symptom: bei aktivem `logtype: true` schreibt der
+Adapter pro Poll-Tick eine `Token has expired - refresh`-Zeile ins
+Log. Mit dem `polltime: 300`-Default aus `codibris.2` wurde das
+besonders auffällig.
+
+### Behoben
+- **Token-Refresh-Thrashing** (`main.js:417` + `main.js:445`).
+  Die Easee-API liefert `expiresIn` nach OAuth-Standard in **Sekunden**
+  (typisch: 86400 = 24 h). Der Adapter behandelte den Wert bisher als
+  Millisekunden und rechnete:
+  ```js
+  expireTime = Date.now() + (response.data.expiresIn - 500);
+  ```
+  Bei `expiresIn = 86400` ergibt das `Date.now() + 85900 ms` ≈
+  85 Sekunden Token-Lebensdauer statt 24 Stunden. Konsequenz: bei jedem
+  `readAllStates()`-Tick galt `expireTime <= Date.now()` und der
+  Adapter feuerte einen Refresh-Call gegen `/api/accounts/refresh_token`.
+  Korrigiert zu:
+  ```js
+  expireTime = Date.now() + (response.data.expiresIn - 30) * 1000;
+  ```
+  Mit `expiresIn = 86400` lebt der Token jetzt 23 h 59 m 30 s, wie vom
+  API-Contract vorgesehen, mit 30 s Safety-Margin vor dem realen
+  Ablauf.
+
+### Auswirkung im Produktivbetrieb
+
+| Kennzahl | vorher | nachher |
+|---|---|---|
+| Refresh-Token-Calls / Stunde | 12 (alle 5 Min bei polltime 300 s) | ≈ 0.04 (alle 24 h) |
+| Log-Spam `Token has expired - refresh` | dauerhaft | nur einmal täglich |
+
 ## [1.0.11-codibris.2] – 2026-05-24
 
 Follow-up zu `1.0.11-codibris.1`: schließt einen Schema-Inkonsistenz-Bug,
@@ -109,6 +144,7 @@ Diese Release basiert auf [Newan/ioBroker.easee@68af2a1](https://github.com/Newa
 Master-Commit des Upstream-Repos. Für die Historie davor siehe den
 "Changelog"-Abschnitt in der `README.md`.
 
-[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.2...master
+[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.3...master
+[1.0.11-codibris.3]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.3
 [1.0.11-codibris.2]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.2
 [1.0.11-codibris.1]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.1
