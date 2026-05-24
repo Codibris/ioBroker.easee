@@ -410,7 +410,9 @@ onUnload(callback) {
 
             accessToken = response.data.accessToken;
             refreshToken = response.data.refreshToken;
-            expireTime = Date.now() + (response.data.expiresIn - 500);
+            // expiresIn is in seconds (OAuth standard, Easee returns 86400);
+            // Date.now() is in ms. Convert and keep a 30s safety margin.
+            expireTime = Date.now() + (response.data.expiresIn - 30) * 1000;
             this.log.debug(JSON.stringify(response.data));
             await this.setStateAsync('info.connection', true, true);
             return true;
@@ -435,7 +437,9 @@ onUnload(callback) {
             if (logtype) this.log.info('RefreshToken successful');
             accessToken = response.data.accessToken;
             refreshToken = response.data.refreshToken;
-            expireTime = Date.now() + (response.data.expiresIn - 500);
+            // expiresIn is in seconds (OAuth standard, Easee returns 86400);
+            // Date.now() is in ms. Convert and keep a 30s safety margin.
+            expireTime = Date.now() + (response.data.expiresIn - 30) * 1000;
             await this.setStateAsync('info.connection', true, true);
             this.log.debug(JSON.stringify(response.data));
         }).catch(async (error) => {
