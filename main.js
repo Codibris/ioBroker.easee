@@ -498,12 +498,13 @@ onUnload(callback) {
         }
     }
 
-    //GET net Token from API
+    //Get new Token from API
     async refreshToken() {
-        return await axios.post(apiUrl + '/api/accounts/refresh_token', {
-            accessToken: accessToken,
-            refreshToken: refreshToken
-        }).then(async response => {
+        try {
+            const response = await axios.post(apiUrl + '/api/accounts/refresh_token', {
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+            });
             if (logtype) this.log.info('RefreshToken successful');
             accessToken = response.data.accessToken;
             refreshToken = response.data.refreshToken;
@@ -513,77 +514,92 @@ onUnload(callback) {
             await this.setStateAsync('info.connection', true, true);
             // Do not log accessToken/refreshToken; they are credentials.
             this.log.debug(`refreshToken: expiresIn=${response.data.expiresIn}s, token length=${(response.data.accessToken || '').length}`);
-        }).catch(async (error) => {
-            this.log.error('RefreshToken error');
-            this.log.error(error);
+            return true;
+        } catch (error) {
+            const status = error && error.response && error.response.status;
+            this.log.warn(`RefreshToken failed (HTTP ${status || '?'}): ${error && error.message ? error.message : error}`);
+
+            // On 4xx the refresh token itself has been invalidated
+            // (e.g. password change, token revoke, account lockout).
+            // A bare retry will not help; fall back to a full login.
+            if (status >= 400 && status < 500) {
+                this.log.info('RefreshToken returned 4xx, falling back to full login');
+                const ok = await this.login(this.config.username, this.config.client_secret);
+                if (ok) return true;
+                this.log.error('Fallback login after RefreshToken 4xx also failed');
+            }
+
             await this.setStateAsync('info.connection', false, true);
-        });
+            // Expire the stored token so the next readAllStates() tick
+            // tries the refresh/login path again instead of using a
+            // stale token that the cloud will reject anyway.
+            expireTime = Date.now();
+            return false;
+        }
+    }
+
+    // Helper: GET with sane error handling and a single retry on 5xx.
+    //   - 401  -> expire the token so the next tick re-auths, throw with context.
+    //   - 429  -> log warn (no retry; that would only make the rate-limit worse).
+    //   - 5xx  -> retry once after 1s, then surface to the caller.
+    //   - else -> log + throw with context so the caller can decide.
+    async _apiGet(path, context) {
+        const url = apiUrl + path;
+        const config = { headers: { Authorization: `Bearer ${accessToken}` } };
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const response = await axios.get(url, config);
+                this.log.debug(`${context} ok`);
+                this.log.debug(JSON.stringify(response.data));
+                return response.data;
+            } catch (error) {
+                const status = error && error.response && error.response.status;
+                if (status === 401) {
+                    // Token rejected -> force refresh on next tick.
+                    expireTime = Date.now();
+                    throw new Error(`${context}: HTTP 401 (token rejected)`);
+                }
+                if (status === 429) {
+                    // Rate-limited; do not retry, just surface a warn.
+                    this.log.warn(`${context}: HTTP 429 (rate-limited)`);
+                    throw new Error(`${context}: HTTP 429`);
+                }
+                if (status && status >= 500 && status < 600 && attempt === 1) {
+                    this.log.warn(`${context}: HTTP ${status}, retry in 1s`);
+                    await new Promise((r) => setTimeout(r, 1000));
+                    continue;
+                }
+                const msg = error && error.message ? error.message : String(error);
+                throw new Error(`${context}: ${status ? `HTTP ${status}` : 'request failed'} - ${msg}`);
+            }
+        }
     }
 
     //Lese alle Charger aus
-    async getAllCharger(){
-        return await axios.get(apiUrl + '/api/chargers' ,
-            { headers: {'Authorization' : `Bearer ${accessToken}`}
-            }).then(response => {
-            this.log.debug('Chargers ausgelesen');
-            this.log.debug(JSON.stringify(response.data));
-            return response.data;
-        }).catch((error) => {
-            this.log.error(error);
-        });
+    async getAllCharger() {
+        try {
+            return await this._apiGet('/api/chargers', 'getAllCharger');
+        } catch (error) {
+            this.log.error(error.message);
+            return undefined; // readAllStates checks for undefined.
+        }
     }
 
     // Lese den Charger aus
-    async getChargerState(charger_id){
-        return await axios.get(apiUrl + '/api/chargers/' + charger_id +'/state',
-            { headers: {'Authorization' : `Bearer ${accessToken}`}
-            }).then(response => {
-            this.log.debug('Charger status ausgelesen mit id: ' + charger_id);
-            this.log.debug(JSON.stringify(response.data));
-            return response.data;
-        }).catch((error) => {
-            this.log.error(error);
-            throw new Error('Easee API error on charger state - stop refresh');
-        });
+    async getChargerState(charger_id) {
+        return await this._apiGet(`/api/chargers/${charger_id}/state`, `getChargerState(${charger_id})`);
     }
 
-    async getChargerConfig(charger_id){
-        return await axios.get(apiUrl + '/api/chargers/' + charger_id +'/config',
-            { headers: {'Authorization' : `Bearer ${accessToken}`}
-            }).then(response => {
-            this.log.debug('Charger config ausgelesen mit id: ' + charger_id);
-            this.log.debug(JSON.stringify(response.data));
-            return response.data;
-        }).catch((error) => {
-            this.log.error(error);
-            throw new Error('Easee API error on charger config - stop refresh');
-        });
+    async getChargerConfig(charger_id) {
+        return await this._apiGet(`/api/chargers/${charger_id}/config`, `getChargerConfig(${charger_id})`);
     }
 
-    async getChargerSite(charger_id){
-        return await axios.get(apiUrl + '/api/chargers/' + charger_id +'/site',
-            { headers: {'Authorization' : `Bearer ${accessToken}`}
-            }).then(response => {
-            this.log.debug('Charger site ausgelesen mit id: ' + charger_id);
-            this.log.debug(JSON.stringify(response.data));
-            return response.data;
-        }).catch((error) => {
-            this.log.error(error);
-            throw new Error('Easee API error on charger site - stop refresh');
-        });
+    async getChargerSite(charger_id) {
+        return await this._apiGet(`/api/chargers/${charger_id}/site`, `getChargerSite(${charger_id})`);
     }
 
-    async getChargerSession(charger_id){
-        return await axios.get(apiUrl + '/api/sessions/charger/' + charger_id +'/monthly',
-            { headers: {'Authorization' : `Bearer ${accessToken}`}
-            }).then(response => {
-            this.log.debug('Charger session ausgelesen mit id: ' + charger_id);
-            this.log.debug(JSON.stringify(response.data));
-            return response.data;
-        }).catch((error) => {
-            this.log.error(error);
-            throw new Error('Easee API error on charger session - stop refresh');
-        });
+    async getChargerSession(charger_id) {
+        return await this._apiGet(`/api/sessions/charger/${charger_id}/monthly`, `getChargerSession(${charger_id})`);
     }
 
     async startCharging(id) {
