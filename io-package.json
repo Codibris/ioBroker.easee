@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "easee",
-        "version": "1.0.11-codibris.3",
+        "version": "1.0.11-codibris.4",
         "news": {
+            "1.0.11-codibris.4": {
+                "en": "Hardening sweep: serialize charger polling, SignalR reconnect with backoff, refreshToken fallback to full login on 4xx, 5xx retries, drop accessToken from debug logs, fix circuitMaxCurrentP2 copy-paste, re-enable P3 subscribe, map chargerOpMode 7, reset arrCharger correctly",
+                "de": "Härtungspaket: Charger-Polling sequenziell, SignalR-Reconnect mit Backoff, refreshToken-Fallback auf vollen Login bei 4xx, 5xx-Retries, accessToken nicht mehr im Debug-Log, circuitMaxCurrentP2-Copy-Paste behoben, P3-Subscribe reaktiviert, chargerOpMode 7 gemappt, arrCharger korrekt zurückgesetzt"
+            },
             "1.0.11-codibris.3": {
                 "en": "Fix token-refresh thrashing: expiresIn was treated as ms instead of seconds, causing a refresh on every poll tick",
                 "de": "Token-Refresh-Bug behoben: expiresIn wurde als ms statt Sekunden interpretiert, was bei jedem Poll-Tick einen Refresh ausgelöst hat"

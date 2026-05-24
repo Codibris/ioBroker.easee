@@ -10,6 +10,77 @@ mit einem Fork-Suffix `-codibris.<n>`.
 
 Keine offenen Änderungen.
 
+## [1.0.11-codibris.4] – 2026-05-24
+
+Größeres Härtungspaket basierend auf einem Code-Review unseres Forks
+und einer Sichtung der offenen Upstream-Issues. Acht eigenständige
+Bugfixes in vier Commits.
+
+### Behoben
+
+- **Race condition + verlorenes Polling** (`main.js:171–250`).
+  `readAllStates()` nutzte `tmpAllChargers.forEach(async charger => …)`,
+  das die per-Charger-Promises nicht awaitet hat. Konsequenzen: bei 3
+  Wallboxen liefen die HTTP-Calls überlappend, ein Throw wurde zur
+  **Unhandled Promise Rejection**, und der `setTimeout` für den
+  nächsten Tick war im `if (tmpAllChargers != undefined)`-Block.
+  Ein einziger Fehler in `getAllCharger()` konnte das Polling für
+  immer stoppen. Jetzt: `for…of` mit per-Charger try/catch, äußerer
+  try/catch/finally, `setTimeout` im `finally`.
+
+- **SignalR-Reconnect-Loop ohne Backoff** (`main.js:39–134`).
+  Bisher rief `connection.onclose` sofort wieder `this.startSignal()`
+  auf — ohne Pause. Bei totem Endpunkt waren das tausende
+  Negotiation-Versuche pro Minute. Jetzt: exponentielles Backoff
+  (1 s → 2 s → 4 s → … max 60 s), Reset bei erfolgreichem Reconnect.
+  Aktive Connection in `this.signalConnection`, Shutdown-Flag
+  `this.signalRUnloaded`, sauberer `connection.stop()` in `onUnload`.
+
+- **`refreshToken()` ohne 4xx-Fallback** (`main.js:501–539`).
+  Bei `invalid_grant` (Passwortänderung, Token-Revoke) blieb der
+  Adapter mit veraltetem Token zurück und produzierte endlose 401er.
+  Jetzt: bei HTTP 4xx automatischer Fallback auf `login()` mit den
+  gespeicherten Credentials. `expireTime = Date.now()` bei jedem
+  Misserfolg, damit der nächste Tick den Refresh/Login wiederholt.
+
+- **API-GETs ohne Retry und mit unleserlichen Fehlern**
+  (`main.js:541–605`). Die fünf REST-Endpoints
+  (`getAllCharger`, `getChargerState`, `getChargerConfig`,
+  `getChargerSite`, `getChargerSession`) hatten jeweils ein eigenes
+  `.catch()` mit `this.log.error(error)` (loggt das rohe Axios-
+  Error-Objekt) und generischem `throw new Error('… - stop refresh')`.
+  Refaktoriert in einen Helper `_apiGet(path, context)`:
+  - **5xx**: ein Retry nach 1 s (transiente Cloud-Fehler).
+  - **429**: kein Retry (würde Rate-Limit verschärfen), Warn-Log.
+  - **401**: `expireTime = Date.now()`, nächster Tick re-authentifiziert.
+  - Lesbare Error-Messages mit Endpoint-Kontext
+    (`getChargerState(EH551234): HTTP 500 - …`).
+
+- **`circuitMaxCurrentP2` zeigte `P3`-Wert** (`main.js:395`).
+  Copy-Paste-Bug aus dem Upstream: P2-State wurde mit
+  `charger_config.circuitMaxCurrentP3` befüllt.
+
+- **`subscribeStates` für P3 war auskommentiert** (`main.js:1340`).
+  User-Änderungen an `circuitMaxCurrentP3` im Admin-UI wurden
+  stillschweigend ignoriert.
+
+- **Token im Debug-Log** (`main.js:420`, `:448`).
+  `login()` und `refreshToken()` haben den vollen `response.data`
+  via `JSON.stringify` in den Debug-Log geschrieben — also
+  `accessToken` und `refreshToken` im Klartext. Jetzt nur noch
+  `expiresIn` und Token-Länge.
+
+- **`arrCharger`-Array wurde bei Re-Init nicht geleert**
+  (`main.js:136`). `this.arrCharger = []` hat eine Instance-
+  Property gesetzt, der restliche Code arbeitet aber mit der
+  module-level `const arrCharger`. Fix: `arrCharger.length = 0`.
+
+- **`chargerOpMode` als Zahl statt Label** (`main.js:757`).
+  Upstream-Issue #85: `chargerOpMode = 7` ist
+  `AwaitingAuthentication`, war aber nicht im Object-Schema. Jetzt
+  enthält das State-Objekt eine `common.states`-Map für die Werte
+  0–8.
+
 ## [1.0.11-codibris.3] – 2026-05-24
 
 Behebt einen seit Adapter-Anbeginn vorhandenen Einheiten-Fehler in der
@@ -144,7 +215,8 @@ Diese Release basiert auf [Newan/ioBroker.easee@68af2a1](https://github.com/Newa
 Master-Commit des Upstream-Repos. Für die Historie davor siehe den
 "Changelog"-Abschnitt in der `README.md`.
 
-[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.3...master
+[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.4...master
+[1.0.11-codibris.4]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.4
 [1.0.11-codibris.3]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.3
 [1.0.11-codibris.2]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.2
 [1.0.11-codibris.1]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.1
