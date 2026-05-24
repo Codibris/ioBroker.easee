@@ -107,7 +107,7 @@
     "native": {
         "username": "+49",
         "client_secret": "",
-        "polltime": 60,
+        "polltime": 300,
         "signalR": true,
         "logtype": false
     },
