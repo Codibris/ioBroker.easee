@@ -132,8 +132,9 @@ class Easee extends utils.Adapter {
           native: {},
         });
 
-        //reset all to start
-        this.arrCharger = [];
+        //reset all to start; arrCharger is a module-level const above,
+        //so mutate the array in place instead of shadowing it on `this`.
+        arrCharger.length = 0;
 
         // starten den Statuszyklus der API neu
         await this.readAllStates();
@@ -388,7 +389,7 @@ onUnload(callback) {
 
         //Values for sites
         await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP1', { val: charger_config.circuitMaxCurrentP1, ack: true });
-        await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP2', { val: charger_config.circuitMaxCurrentP3, ack: true });
+        await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP2', { val: charger_config.circuitMaxCurrentP2, ack: true });
         await this.setStateAsync(charger.id + '.config.circuitMaxCurrentP3', { val: charger_config.circuitMaxCurrentP3, ack: true });
     }
 
@@ -413,7 +414,8 @@ onUnload(callback) {
             // expiresIn is in seconds (OAuth standard, Easee returns 86400);
             // Date.now() is in ms. Convert and keep a 30s safety margin.
             expireTime = Date.now() + (response.data.expiresIn - 30) * 1000;
-            this.log.debug(JSON.stringify(response.data));
+            // Do not log accessToken/refreshToken; they are credentials.
+            this.log.debug(`login: expiresIn=${response.data.expiresIn}s, token length=${(response.data.accessToken || '').length}`);
             await this.setStateAsync('info.connection', true, true);
             return true;
         } catch (error) {
@@ -441,7 +443,8 @@ onUnload(callback) {
             // Date.now() is in ms. Convert and keep a 30s safety margin.
             expireTime = Date.now() + (response.data.expiresIn - 30) * 1000;
             await this.setStateAsync('info.connection', true, true);
-            this.log.debug(JSON.stringify(response.data));
+            // Do not log accessToken/refreshToken; they are credentials.
+            this.log.debug(`refreshToken: expiresIn=${response.data.expiresIn}s, token length=${(response.data.accessToken || '').length}`);
         }).catch(async (error) => {
             this.log.error('RefreshToken error');
             this.log.error(error);
@@ -755,6 +758,17 @@ onUnload(callback) {
                 role: 'value',
                 read: true,
                 write: false,
+                states: {
+                    0: 'Offline',
+                    1: 'Disconnected',
+                    2: 'AwaitingStart',
+                    3: 'Charging',
+                    4: 'Completed',
+                    5: 'Error',
+                    6: 'ReadyToCharge',
+                    7: 'AwaitingAuthentication',
+                    8: 'DeAuthenticating',
+                },
             },
             native: {},
         });
@@ -1333,7 +1347,7 @@ onUnload(callback) {
             },
             native: {},
         });
-        //this.subscribeStates(charger.id + '.config.circuitMaxCurrentP3');
+        this.subscribeStates(charger.id + '.config.circuitMaxCurrentP3');
 
         //ledStripBrightness
         await this.setObjectNotExistsAsync(charger.id + '.config.ledStripBrightness', {
