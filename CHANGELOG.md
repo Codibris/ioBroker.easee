@@ -10,6 +10,37 @@ mit einem Fork-Suffix `-codibris.<n>`.
 
 Keine offenen Änderungen.
 
+## [1.0.11-codibris.2] – 2026-05-24
+
+Follow-up zu `1.0.11-codibris.1`: schließt einen Schema-Inkonsistenz-Bug,
+der aus dem Upstream geerbt wurde, und passt den Polltime-Default an
+die neue SignalR-Realität an.
+
+### Geändert
+- **GUI-Constraint für `polltime`: `min: 360` → `min: 30`, `max: 86400` → `max: 3600`**
+  (`admin/jsonConfig.json`). Das Admin-Formular hat bisher jeden Wert
+  unter 360 s als "Zu klein" markiert – auch den frisch geschriebenen
+  `io-package.json`-Default. Die neue Range deckt realistische
+  Anwendungsfälle (30 s schneller Control-Loop bis 1 h Heartbeat) ab.
+- **Help-Text** im Schema weist darauf hin, dass mit aktiviertem
+  SignalR 300–600 s ausreichend sind, weil Live-Updates per
+  WebSocket-Push kommen.
+- **Default `polltime` von 60 s auf 300 s** (`main.js:15`,
+  `io-package.json` native, `package.json` version). Da SignalR jetzt
+  per Default aktiv ist und State-Push liefert, ist der REST-Poll nur
+  noch nötig für Initial-Sync, Config-Refresh und als
+  Reconnect-Fallback. 60 s war ein Übergangswert aus der Phase, in der
+  SignalR noch deaktiviert war.
+
+### Hintergrund
+Sichtbar wurde der Schema-Bug erst nach dem `signalR: true`-Default
+aus `codibris.1`: das frische Einrichten einer Instanz schreibt jetzt
+`polltime: 60` (kommend von `1.0.11-codibris.1`), das GUI lehnt diesen
+Wert beim ersten Öffnen der Konfiguration ab. Mit `codibris.2` sehen
+neue Instanzen `polltime: 300`, was im neuen GUI-Range liegt; bestehende
+Instanzen behalten ihren konfigurierten Wert und können jetzt jeden Wert
+zwischen 30 s und 3600 s wählen.
+
 ## [1.0.11-codibris.1] – 2026-05-24
 
 Erste Bugfix-Release des Codibris-Forks. Adressiert die drei
@@ -78,5 +109,6 @@ Diese Release basiert auf [Newan/ioBroker.easee@68af2a1](https://github.com/Newa
 Master-Commit des Upstream-Repos. Für die Historie davor siehe den
 "Changelog"-Abschnitt in der `README.md`.
 
-[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.1...master
+[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.2...master
+[1.0.11-codibris.2]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.2
 [1.0.11-codibris.1]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.1

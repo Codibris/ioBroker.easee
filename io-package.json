@@ -1,11 +1,15 @@
 {
     "common": {
         "name": "easee",
-        "version": "1.0.11-codibris.1",
+        "version": "1.0.11-codibris.2",
         "news": {
+            "1.0.11-codibris.2": {
+                "en": "Align polltime GUI range (30-3600s) with realistic values; raise default to 300s since SignalR provides live updates",
+                "de": "polltime-GUI-Bereich (30-3600s) an realistische Werte angepasst; Default auf 300s erhöht da SignalR Live-Updates liefert"
+            },
             "1.0.11-codibris.1": {
-                "en": "Fork by Codibris: SignalR enabled by default, polltime default 60s, session polling reduced to 30min to avoid 429 rate limits",
-                "de": "Fork von Codibris: SignalR standardmäßig aktiv, polltime-Default 60s, Session-Polling auf 30 Min reduziert um 429-Ratenlimits zu vermeiden"
+                "en": "Fork by Codibris: SignalR enabled by default, session polling reduced to 30min to avoid 429 rate limits, SignalR negotiation crash on Node.js 22+ fixed",
+                "de": "Fork von Codibris: SignalR standardmäßig aktiv, Session-Polling auf 30 Min reduziert um 429-Ratenlimits zu vermeiden, SignalR-Negotiation-Crash unter Node.js 22+ behoben"
             },
             "1.0.10": {
                 "en": "fix version number",
