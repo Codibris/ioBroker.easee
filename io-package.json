@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "easee",
-        "version": "1.0.10",
+        "version": "1.0.11-codibris.1",
         "news": {
+            "1.0.11-codibris.1": {
+                "en": "Fork by Codibris: SignalR enabled by default, polltime default 60s, session polling reduced to 30min to avoid 429 rate limits",
+                "de": "Fork von Codibris: SignalR standardmäßig aktiv, polltime-Default 60s, Session-Polling auf 30 Min reduziert um 429-Ratenlimits zu vermeiden"
+            },
             "1.0.10": {
                 "en": "fix version number",
                 "de": "versionsnummer geändert",
@@ -103,8 +107,8 @@
     "native": {
         "username": "+49",
         "client_secret": "",
-        "polltime": 30,
-        "signalR": false,
+        "polltime": 60,
+        "signalR": true,
         "logtype": false
     },
     "objects": [],

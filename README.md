@@ -35,6 +35,11 @@ dynamicCircuitCurrentPX -> All phases must be set within 500ms (script) otherwis
   Placeholder for the next version (at the beginning of the line):
   ### **WORK IN PROGRESS**
 -->
+### 1.0.11-codibris.1 (2026-05-24) – Fork by Codibris
+* SignalR (`signalR: true`) als Default aktiv – Live-Updates via WebSocket statt 30s-REST-Polling
+* Polltime-Default von 30s auf 60s (für Multi-Wallbox-Setups schonender für die Easee-API)
+* `minPollTimeEnergy` von 120s auf 1800s – Session-Monatsdaten ändern sich kaum, Faktor 15 weniger Calls auf `/api/sessions/charger/<id>/monthly` (Hauptverursacher von HTTP 429-Fehlern)
+
 ### 1.0.10 (2023-07-27)
 * (Newan) fix version number
 

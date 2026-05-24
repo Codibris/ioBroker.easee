@@ -1,19 +1,24 @@
 {
   "name": "iobroker.easee",
-  "version": "1.0.10",
-  "description": "Adapter to connect Easee Wallbox",
+  "version": "1.0.11-codibris.1",
+  "description": "Adapter to connect Easee Wallbox (Codibris fork)",
   "author": {
     "name": "Jens Nachtigal",
     "email": "info@newan.de"
   },
-  "homepage": "https://github.com/Newan/ioBroker.easee",
+  "contributors": [
+    {
+      "name": "Codibris (fork maintainer)"
+    }
+  ],
+  "homepage": "https://github.com/Codibris/ioBroker.easee",
   "license": "MIT",
   "keywords": [
     "Wallbox easee"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Newan/ioBroker.easee"
+    "url": "https://github.com/Codibris/ioBroker.easee"
   },
   "engines": {
     "node": ">= 18"
@@ -68,7 +73,7 @@
     "lint": "eslint -c eslint.config.mjs ."
   },
   "bugs": {
-    "url": "https://github.com/Newan/ioBroker.easee/issues"
+    "url": "https://github.com/Codibris/ioBroker.easee/issues"
   },
   "readmeFilename": "README.md"
 }
