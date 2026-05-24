@@ -169,74 +169,90 @@ onUnload(callback) {
 }
   /*****************************************************************************************/
   async readAllStates() {
-    if (expireTime <= Date.now()) {
-      //Token ist expired!
-      if (logtype) {
-        this.log.info("Token has expired - refresh");
+    try {
+      if (expireTime <= Date.now()) {
+        //Token ist expired!
+        if (logtype) {
+          this.log.info("Token has expired - refresh");
+        }
+        await this.refreshToken();
       }
-      await this.refreshToken();
-    }
-    this.log.debug("read new states from the API");
+      this.log.debug("read new states from the API");
 
-    //Lesen alle Charger aus
-    const tmpAllChargers = await this.getAllCharger();
-    if (tmpAllChargers != undefined) {
-      tmpAllChargers.forEach(async (charger) => {
-        //Prüfen ob wir das Object kennen
-        if (!arrCharger.includes(charger.id)) {
-          //setzen als erstes alle Objekte
-          await this.setAllStatusObjects(charger);
-          await this.setAllConfigObjects(charger);
+      //Lesen alle Charger aus
+      const tmpAllChargers = await this.getAllCharger();
+      if (tmpAllChargers != undefined) {
+        // Sequential for...of instead of forEach(async ...): forEach
+        // does not await its async callback, so the next tick used to
+        // start before the HTTP calls finished and per-charger throws
+        // surfaced as unhandled promise rejections.
+        for (const charger of tmpAllChargers) {
+          try {
+            //Prüfen ob wir das Object kennen
+            if (!arrCharger.includes(charger.id)) {
+              //setzen als erstes alle Objekte
+              await this.setAllStatusObjects(charger);
+              await this.setAllConfigObjects(charger);
 
-          //merken uns den charger
-          arrCharger.push(charger.id);
-        }
+              //merken uns den charger
+              arrCharger.push(charger.id);
+            }
 
-        this.log.debug("Charger found");
-        this.log.debug(JSON.stringify(charger));
-        try {
-          //Lesen den Status aus
-          const tmpChargerState = await this.getChargerState(charger.id);
-          //Lesen die config
-          const tmpChargerConfig = await this.getChargerConfig(charger.id);
+            this.log.debug("Charger found");
+            this.log.debug(JSON.stringify(charger));
 
-          //Setzen die Daten der Charger
-          await this.setNewStatusToCharger(charger, tmpChargerState);
+            //Lesen den Status aus
+            const tmpChargerState = await this.getChargerState(charger.id);
+            //Lesen die config
+            const tmpChargerConfig = await this.getChargerConfig(charger.id);
 
-          //Setzen die Config zum Charger
-          await this.setConfigStatus(charger, tmpChargerConfig);
+            //Setzen die Daten der Charger
+            await this.setNewStatusToCharger(charger, tmpChargerState);
 
-          //setzen und erechnen der Energiedaten, aber gebremste
-          if (roundCounter > minPollTimeEnergy / polltime) {
-            //lesen der Energiedaten
-            const tmpChargerSession = await this.getChargerSession(charger.id);
-            //setzen die Objekte
-            this.setNewSessionToCharger(charger, tmpChargerSession);
+            //Setzen die Config zum Charger
+            await this.setConfigStatus(charger, tmpChargerConfig);
+
+            //setzen und berechnen der Energiedaten, aber gebremst
+            if (roundCounter > minPollTimeEnergy / polltime) {
+              //lesen der Energiedaten
+              const tmpChargerSession = await this.getChargerSession(charger.id);
+              //setzen die Objekte
+              this.setNewSessionToCharger(charger, tmpChargerSession);
+            }
+          } catch (error) {
+            // Per-charger error must not break the loop or the
+            // outer setTimeout — keep polling the remaining chargers.
+            if (typeof error === "string") {
+              this.log.error(`Charger ${charger.id}: ${error}`);
+            } else if (error instanceof Error) {
+              this.log.error(`Charger ${charger.id}: ${error.message}`);
+            }
           }
-        } catch (error) {
-          if (typeof error === "string") {
-            this.log.error(error);
-          } else if (error instanceof Error) {
-            this.log.error(error.message);
-          }
         }
-      });
       } else {
-          this.log.warn("No Chargers found!");
-        }
+        this.log.warn("No Chargers found!");
+      }
 
-        //Energiedaten dürfen nur einmal in der Minute aufgerufen werden, daher müssen wir das bremsen
-        if (roundCounter > minPollTimeEnergy / polltime) {
-            this.log.debug(`Hole Energiedaten: ${roundCounter}`);
-            roundCounter = 0;
-        }
-        //Zählen die Runde!
-        roundCounter = roundCounter + 1;
+      //Energiedaten dürfen nur einmal in der Minute aufgerufen werden, daher müssen wir das bremsen
+      if (roundCounter > minPollTimeEnergy / polltime) {
+        this.log.debug(`Hole Energiedaten: ${roundCounter}`);
+        roundCounter = 0;
+      }
+      //Zählen die Runde!
+      roundCounter = roundCounter + 1;
 
-        //Melden das Update
-        await this.setStateAsync("lastUpdate", new Date().toLocaleTimeString(), true);
-        adapterIntervals.readAllStates = setTimeout(this.readAllStates.bind(this), polltime * 1000);
+      //Melden das Update
+      await this.setStateAsync("lastUpdate", new Date().toLocaleTimeString(), true);
+    } catch (error) {
+      // Catch-all so the next tick is always scheduled.
+      this.log.error(`readAllStates failed: ${error && error.message ? error.message : error}`);
+    } finally {
+      // Always schedule the next tick — previously this was inside the
+      // `tmpAllChargers != undefined` branch, so any unexpected error
+      // would silently stop the polling loop forever.
+      adapterIntervals.readAllStates = setTimeout(this.readAllStates.bind(this), polltime * 1000);
     }
+  }
 
     //Is called if a subscribed state changes
     onStateChange(id, state) {
