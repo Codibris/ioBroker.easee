@@ -37,9 +37,16 @@ class Easee extends utils.Adapter {
    * SignalR
    */
   startSignal() {
-    // skipNegotiation + WebSockets-only umgeht den Node.js-Bug
-    // "Cannot read properties of undefined (reading 'secure')" in
-    // @microsoft/signalr 8.x (siehe Newan/ioBroker.easee#120).
+    // Bail out if the adapter is shutting down.
+    if (this.signalRUnloaded) return;
+
+    // Skip the HTTP negotiation step and go straight to a WebSocket.
+    // @microsoft/signalr@8.x throws
+    //   TypeError: Cannot read properties of undefined (reading 'secure')
+    // from inside negotiate() on Node.js 22+, which kills the adapter
+    // every time SignalR is enabled (see #120). The Easee hub at
+    // streams.easee.com supports WebSockets directly, so we do not
+    // lose the SSE/Long-Polling fallback for any real client.
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("https://streams.easee.com/hubs/chargers", {
         accessTokenFactory: () => accessToken,
@@ -48,6 +55,10 @@ class Easee extends utils.Adapter {
       })
       .withAutomaticReconnect()
       .build();
+
+    // Keep a reference so onUnload can stop() the active connection
+    // and the reconnect chain can be cancelled cleanly.
+    this.signalConnection = connection;
 
     connection.on("ProductUpdate", (data) => {
       //haben einen neuen Wert über SignalR erhalten
@@ -77,19 +88,48 @@ class Easee extends utils.Adapter {
       }
     });
 
-    connection.start().then(() => {
-      //for each charger subscribe SignalR
-      arrCharger.forEach((charger_id) => {
-        connection
-          .send(`SubscribeWithCurrentState`, charger_id, true)
-          .then(() => {
-            this.log.info(`Charger registrate in SignalR: ${charger_id}`);
-          });
+    connection
+      .start()
+      .then(() => {
+        // Successful (re)connect → reset backoff so the next outage
+        // starts from 1s again.
+        this.signalRBackoffMs = 1000;
+        //for each charger subscribe SignalR
+        arrCharger.forEach((charger_id) => {
+          connection
+            .send(`SubscribeWithCurrentState`, charger_id, true)
+            .then(() => {
+              this.log.info(`Charger registrate in SignalR: ${charger_id}`);
+            })
+            .catch((err) => {
+              this.log.warn(
+                `SignalR subscribe for ${charger_id} failed: ${err && err.message ? err.message : err}`,
+              );
+            });
+        });
+      })
+      .catch((err) => {
+        // start() can reject (e.g. network down) — do not crash, just
+        // log and let onclose schedule a backoff retry.
+        this.log.warn(
+          `SignalR start() failed: ${err && err.message ? err.message : err}`,
+        );
       });
-    });
+
     connection.onclose(() => {
-      this.log.error("SignalR Verbindung beendet!!!- restart");
-      this.startSignal();
+      if (this.signalRUnloaded) return;
+      // Exponential backoff: 1s, 2s, 4s, … up to 60s. Without this,
+      // a dead endpoint creates an endless reconnect loop within
+      // microseconds and floods the cloud with negotiation traffic.
+      const delay = this.signalRBackoffMs || 1000;
+      this.log.error(
+        `SignalR Verbindung beendet – restart in ${Math.round(delay / 1000)}s`,
+      );
+      this.signalRBackoffMs = Math.min((this.signalRBackoffMs || 1000) * 2, 60000);
+      this.signalRReconnectTimer = setTimeout(() => {
+        this.signalRReconnectTimer = undefined;
+        this.startSignal();
+      }, delay);
     });
   }
 
@@ -151,6 +191,18 @@ onUnload(callback) {
   try {
     clearTimeout(adapterIntervals.readAllStates);
     clearTimeout(adapterIntervals.updateDynamicCircuitCurrent);
+
+    // Stop the SignalR reconnect chain and the active WebSocket.
+    this.signalRUnloaded = true;
+    if (this.signalRReconnectTimer) {
+      clearTimeout(this.signalRReconnectTimer);
+      this.signalRReconnectTimer = undefined;
+    }
+    if (this.signalConnection) {
+      this.signalConnection.stop().catch(() => { /* ignore */ });
+      this.signalConnection = undefined;
+    }
+
     this.log.info("Adapter easee cleaned up everything...");
     this.setStateAsync("info.connection", false, true).then(() => {
       callback();
