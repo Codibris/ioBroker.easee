@@ -37,9 +37,18 @@ class Easee extends utils.Adapter {
    * SignalR
    */
   startSignal() {
+    // Skip the HTTP negotiation step and go straight to a WebSocket.
+    // @microsoft/signalr@8.x throws
+    //   TypeError: Cannot read properties of undefined (reading 'secure')
+    // from inside negotiate() on Node.js 22+, which kills the adapter
+    // every time SignalR is enabled (see #120). The Easee hub at
+    // streams.easee.com supports WebSockets directly, so we do not
+    // lose the SSE/Long-Polling fallback for any real client.
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("https://streams.easee.com/hubs/chargers", {
         accessTokenFactory: () => accessToken,
+        skipNegotiation: true,
+        transport: signalR.HttpTransportType.WebSockets,
       })
       .withAutomaticReconnect()
       .build();
