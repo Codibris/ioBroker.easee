@@ -10,6 +10,48 @@ mit einem Fork-Suffix `-codibris.<n>`.
 
 Keine offenen Änderungen.
 
+## [1.0.11-codibris.5] – 2026-05-25
+
+Addressiert einen in der Praxis beobachteten **SignalR-Zombie-Bug**:
+Die WebSocket-Verbindung zu `streams.easee.com` kann aufhören
+Telemetrie zu liefern, ohne dass `connection.onclose()` triggert. Der
+Adapter glaubt SignalR sei in Ordnung, State-Updates kommen aber nur
+noch über den 300 s REST-Poll. Symptom: Wallbox wechselt real auf
+"Charging", `chargerOpMode` zeigt minutenlang weiter "AwaitingStart".
+
+### Hinzugefügt
+- **SignalR-Heartbeat-Watchdog** (`main.js:36–134`, `:onUnload`).
+  Jeder `ProductUpdate`-Callback stempelt `this.lastSignalRActivity`.
+  Ein `setInterval(60 s)` prüft, ob die letzte Aktivität älter als
+  **120 s** ist; falls ja → `connection.stop()`, was `onclose()`
+  triggert, was den existierenden Exponential-Backoff-Reconnect
+  startet. 120 s sind so gewählt, dass eine im Standby befindliche
+  Wallbox (die periodisch Telemetrie pusht) keine false positives
+  erzeugt. Im Unload wird der Watchdog sauber via `clearInterval`
+  gestoppt.
+- **11 neue SignalR-Observation-IDs in `lib/enum.js`** (2024+
+  Firmware):
+  - `219` → `status.fatalErrorCode`
+  - `220–222` → `status.lteRSRP / lteSINR / lteRSRQ`
+  - `223` → `status.chargingSessionStart`
+  - `230–232` → `status.eqAvailableCurrentP1/P2/P3`
+  - `240` → `status.diagnosticsString`
+  - `241` → `config.wiFiMACAddress`
+  - `250` → `status.connectedToCloud` (nützlicher Health-Flag)
+  - `251` → `status.cloudDisconnectReason`
+  Quelle: pyeasee (Python-Lib hinter der Home-Assistant
+  easee_hass-Integration) + offizielle Easee-Doku. IDs `233` und
+  `234` bleiben undokumentiert.
+
+### Beobachtetes Verhalten
+- Vor dem Patch: Charger-Status hing nach echtem Anstecken bis zu
+  5 Min auf "AwaitingStart", weil SignalR still gestorben war und
+  nur der REST-Tick noch updates lieferte.
+- Nach dem Patch: Watchdog erkennt die Stille spätestens 120 s nach
+  dem letzten Event, erzwingt Reconnect, Easee pusht beim
+  Re-Subscribe sofort den aktuellen State – Latenz wieder im
+  Sekundenbereich.
+
 ## [1.0.11-codibris.4] – 2026-05-24
 
 Größeres Härtungspaket basierend auf einem Code-Review unseres Forks
@@ -215,7 +257,8 @@ Diese Release basiert auf [Newan/ioBroker.easee@68af2a1](https://github.com/Newa
 Master-Commit des Upstream-Repos. Für die Historie davor siehe den
 "Changelog"-Abschnitt in der `README.md`.
 
-[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.4...master
+[Unreleased]: https://github.com/Codibris/ioBroker.easee/compare/v1.0.11-codibris.5...master
+[1.0.11-codibris.5]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.5
 [1.0.11-codibris.4]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.4
 [1.0.11-codibris.3]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.3
 [1.0.11-codibris.2]: https://github.com/Codibris/ioBroker.easee/releases/tag/v1.0.11-codibris.2

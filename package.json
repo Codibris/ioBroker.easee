@@ -1,6 +1,6 @@
 {
   "name": "iobroker.easee",
-  "version": "1.0.11-codibris.4",
+  "version": "1.0.11-codibris.5",
   "description": "Adapter to connect Easee Wallbox (Codibris fork)",
   "author": {
     "name": "Jens Nachtigal",

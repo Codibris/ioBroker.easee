@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "easee",
-        "version": "1.0.11-codibris.4",
+        "version": "1.0.11-codibris.5",
         "news": {
+            "1.0.11-codibris.5": {
+                "en": "SignalR silent-zombie watchdog: detect dead WebSocket within 2 min and force reconnect; map 11 new observation IDs (219-251) introduced in 2024+ firmware",
+                "de": "SignalR-Zombie-Watchdog: erkennt tote WebSocket-Verbindung in <2 Min und erzwingt Reconnect; 11 neue Observation-IDs (219-251) aus 2024+ Firmware gemappt"
+            },
             "1.0.11-codibris.4": {
                 "en": "Hardening sweep: serialize charger polling, SignalR reconnect with backoff, refreshToken fallback to full login on 4xx, 5xx retries, drop accessToken from debug logs, fix circuitMaxCurrentP2 copy-paste, re-enable P3 subscribe, map chargerOpMode 7, reset arrCharger correctly",
                 "de": "Härtungspaket: Charger-Polling sequenziell, SignalR-Reconnect mit Backoff, refreshToken-Fallback auf vollen Login bei 4xx, 5xx-Retries, accessToken nicht mehr im Debug-Log, circuitMaxCurrentP2-Copy-Paste behoben, P3-Subscribe reaktiviert, chargerOpMode 7 gemappt, arrCharger korrekt zurückgesetzt"
