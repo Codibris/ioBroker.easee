@@ -59,8 +59,15 @@ class Easee extends utils.Adapter {
     // Keep a reference so onUnload can stop() the active connection
     // and the reconnect chain can be cancelled cleanly.
     this.signalConnection = connection;
+    // Heartbeat for the silent-zombie watchdog. Easee pushes telemetry
+    // multiple times per minute on a healthy connection, so prolonged
+    // silence means the WebSocket is dead even if onclose never fires.
+    this.lastSignalRActivity = Date.now();
 
     connection.on("ProductUpdate", (data) => {
+      // Update heartbeat first — even unknown SignalR IDs prove the
+      // socket is alive.
+      this.lastSignalRActivity = Date.now();
       //haben einen neuen Wert über SignalR erhalten
       const data_name = objEnum.getNameByEnum(data.id);
       if (data_name == undefined) {
@@ -131,6 +138,33 @@ class Easee extends utils.Adapter {
         this.startSignal();
       }, delay);
     });
+
+    // Silent-zombie watchdog: observed in production that the
+    // WebSocket can stop delivering ProductUpdate events without
+    // triggering onclose() (TCP keepalive eaten by a NAT, server
+    // throttling, ...). When that happens the adapter believes
+    // SignalR is healthy and state updates arrive only via the
+    // 300s REST poll. Easee pushes telemetry several times per
+    // minute on a healthy connection, so a 2-minute silence is a
+    // reliable death signal. Force a reconnect; onclose then
+    // handles the backoff.
+    if (!this.signalRWatchdog) {
+      this.signalRWatchdog = setInterval(() => {
+        if (this.signalRUnloaded) return;
+        const silenceMs = Date.now() - (this.lastSignalRActivity || 0);
+        if (silenceMs > 120000) {
+          this.log.warn(
+            `SignalR silent for ${Math.round(silenceMs / 1000)}s, forcing reconnect`,
+          );
+          // Reset the heartbeat so we do not retrigger every 60s
+          // while the reconnect is in flight.
+          this.lastSignalRActivity = Date.now();
+          if (this.signalConnection) {
+            this.signalConnection.stop().catch(() => { /* ignore */ });
+          }
+        }
+      }, 60000);
+    }
   }
 
   /**
@@ -192,11 +226,16 @@ onUnload(callback) {
     clearTimeout(adapterIntervals.readAllStates);
     clearTimeout(adapterIntervals.updateDynamicCircuitCurrent);
 
-    // Stop the SignalR reconnect chain and the active WebSocket.
+    // Stop the SignalR reconnect chain, the watchdog and the
+    // active WebSocket.
     this.signalRUnloaded = true;
     if (this.signalRReconnectTimer) {
       clearTimeout(this.signalRReconnectTimer);
       this.signalRReconnectTimer = undefined;
+    }
+    if (this.signalRWatchdog) {
+      clearInterval(this.signalRWatchdog);
+      this.signalRWatchdog = undefined;
     }
     if (this.signalConnection) {
       this.signalConnection.stop().catch(() => { /* ignore */ });
